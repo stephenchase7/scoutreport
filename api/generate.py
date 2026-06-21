@@ -1,4 +1,3 @@
-from http.server import BaseHTTPRequestHandler
 import json
 import os
 import anthropic
@@ -22,26 +21,44 @@ Writing style guidelines:
 - 3-5 sentences per section when notes are provided
 - Use player's name or position naturally in the text
 - Avoid generic praise - be specific about what was observed
-- NEVER use em-dashes (—), use commas or periods instead
+- NEVER use em-dashes, use commas or periods instead
 - Write in a natural human style, avoid overly formal or AI-sounding phrasing"""
 
-class handler(BaseHTTPRequestHandler):
-    def do_POST(self):
-        content_length = int(self.headers['Content-Length'])
-        post_data = self.rfile.read(content_length)
-        data = json.loads(post_data.decode('utf-8'))
+def handler(request):
+    if request.method == "OPTIONS":
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type"
+            },
+            "body": ""
+        }
 
-        player_name = data.get('playerName', 'Player')
-        position = data.get('position', '')
-        special_weapon = data.get('specialWeapon', '')
-        notes_with_ball = data.get('notesWithBall', '').strip()
-        notes_against_ball = data.get('notesAgainstBall', '').strip()
+    try:
+        body = request.body
+        if isinstance(body, bytes):
+            body = body.decode('utf-8')
+        data = json.loads(body)
+    except:
+        return {
+            "statusCode": 400,
+            "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+            "body": json.dumps({"error": "Invalid JSON"})
+        }
 
-        with_ball_section = notes_with_ball if notes_with_ball else "N/A - no observations provided"
-        against_ball_section = notes_against_ball if notes_against_ball else "N/A - no observations provided"
-        weapon_section = special_weapon if special_weapon else "Not identified"
+    player_name = data.get('playerName', 'Player')
+    position = data.get('position', '')
+    special_weapon = data.get('specialWeapon', '')
+    notes_with_ball = data.get('notesWithBall', '').strip()
+    notes_against_ball = data.get('notesAgainstBall', '').strip()
 
-        user_prompt = f"""Convert these shorthand scouting notes into a professional Scoutastic report.
+    with_ball_section = notes_with_ball if notes_with_ball else "N/A - no observations provided"
+    against_ball_section = notes_against_ball if notes_against_ball else "N/A - no observations provided"
+    weapon_section = special_weapon if special_weapon else "Not identified"
+
+    user_prompt = f"""Convert these shorthand scouting notes into a professional Scoutastic report.
 
 Player: {player_name}
 Position: {position}
@@ -55,36 +72,29 @@ AGAINST THE BALL NOTES:
 
 Generate two sections. The player's special weapon(s) should be emphasized naturally in the relevant section. If a section's notes say "N/A", output "N/A" for that section. Do not make up observations."""
 
-        try:
-            client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
+    try:
+        client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
 
-            message = client.messages.create(
-                model="claude-haiku-4-5",
-                max_tokens=1024,
-                system=SYSTEM_PROMPT,
-                messages=[
-                    {"role": "user", "content": user_prompt}
-                ]
-            )
+        message = client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=1024,
+            system=SYSTEM_PROMPT,
+            messages=[
+                {"role": "user", "content": user_prompt}
+            ]
+        )
 
-            response_text = message.content[0].text
+        response_text = message.content[0].text
 
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            self.wfile.write(json.dumps({'report': response_text}).encode())
+        return {
+            "statusCode": 200,
+            "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+            "body": json.dumps({"report": response_text})
+        }
 
-        except Exception as e:
-            self.send_response(500)
-            self.send_header('Content-type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            self.wfile.write(json.dumps({'error': str(e)}).encode())
-
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-        self.end_headers()
+    except Exception as e:
+        return {
+            "statusCode": 500,
+            "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+            "body": json.dumps({"error": str(e)})
+        }
