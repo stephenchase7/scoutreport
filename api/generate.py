@@ -72,7 +72,7 @@ AGAINST THE BALL NOTES:
 Generate two sections. The player's special weapon(s) should be emphasized naturally in the relevant section. If a section's notes say "N/A", output "N/A" for that section. Do not make up observations."""
 
         try:
-            api_key = os.environ.get('ANTHROPIC_API_KEY')
+            api_key = os.environ.get('ANTHROPIC_API_KEY', '').strip()
             if not api_key:
                 raise ValueError("ANTHROPIC_API_KEY not set")
 
