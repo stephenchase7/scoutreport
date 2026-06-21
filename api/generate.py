@@ -1,7 +1,7 @@
 from http.server import BaseHTTPRequestHandler
 import json
 import os
-import anthropic
+import httpx
 
 SYSTEM_PROMPT = """You are a professional youth soccer scout writing reports for Red Bull's Scoutastic platform.
 
@@ -75,18 +75,28 @@ Generate two sections. The player's special weapon(s) should be emphasized natur
             api_key = os.environ.get('ANTHROPIC_API_KEY')
             if not api_key:
                 raise ValueError("ANTHROPIC_API_KEY not set")
-            client = anthropic.Anthropic(api_key=api_key, timeout=60.0)
 
-            message = client.messages.create(
-                model="claude-haiku-4-5",
-                max_tokens=1024,
-                system=SYSTEM_PROMPT,
-                messages=[
-                    {"role": "user", "content": user_prompt}
-                ]
+            response = httpx.post(
+                'https://api.anthropic.com/v1/messages',
+                headers={
+                    'Content-Type': 'application/json',
+                    'x-api-key': api_key,
+                    'anthropic-version': '2023-06-01'
+                },
+                json={
+                    'model': 'claude-haiku-4-5',
+                    'max_tokens': 1024,
+                    'system': SYSTEM_PROMPT,
+                    'messages': [{'role': 'user', 'content': user_prompt}]
+                },
+                timeout=60.0
             )
 
-            response_text = message.content[0].text
+            if response.status_code != 200:
+                raise ValueError(f"API error {response.status_code}: {response.text}")
+
+            result = response.json()
+            response_text = result['content'][0]['text']
 
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
@@ -95,7 +105,6 @@ Generate two sections. The player's special weapon(s) should be emphasized natur
             self.wfile.write(json.dumps({'report': response_text}).encode())
 
         except Exception as e:
-            import traceback
             error_detail = f"{type(e).__name__}: {str(e)}"
             self.send_response(500)
             self.send_header('Content-Type', 'application/json')
