@@ -72,7 +72,10 @@ AGAINST THE BALL NOTES:
 Generate two sections. The player's special weapon(s) should be emphasized naturally in the relevant section. If a section's notes say "N/A", output "N/A" for that section. Do not make up observations."""
 
         try:
-            client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
+            api_key = os.environ.get('ANTHROPIC_API_KEY')
+            if not api_key:
+                raise ValueError("ANTHROPIC_API_KEY not set")
+            client = anthropic.Anthropic(api_key=api_key, timeout=60.0)
 
             message = client.messages.create(
                 model="claude-haiku-4-5",
