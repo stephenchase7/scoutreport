@@ -92,8 +92,10 @@ Generate two sections. The player's special weapon(s) should be emphasized natur
             self.wfile.write(json.dumps({'report': response_text}).encode())
 
         except Exception as e:
+            import traceback
+            error_detail = f"{type(e).__name__}: {str(e)}"
             self.send_response(500)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
-            self.wfile.write(json.dumps({'error': str(e)}).encode())
+            self.wfile.write(json.dumps({'error': error_detail}).encode())
