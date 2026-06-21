@@ -518,6 +518,161 @@
         .tab-content.active {
             display: block;
         }
+
+        .search-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            background: #ffffff;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #94a3b8;
+        }
+
+        .report-actions {
+            display: flex;
+            gap: 6px;
+            margin-left: 8px;
+        }
+
+        .icon-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 6px;
+            background: #f1f5f9;
+            color: #64748b;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s ease;
+        }
+
+        .icon-btn:hover {
+            background: #e2e8f0;
+            color: #475569;
+        }
+
+        .icon-btn.edit:hover {
+            background: #dbeafe;
+            color: #2563eb;
+        }
+
+        .icon-btn.delete:hover {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .icon-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .special-weapon-badge {
+            display: inline-block;
+            background: #fef3c7;
+            color: #92400e;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            margin-top: 4px;
+        }
+
+        .confirm-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1001;
+        }
+
+        .confirm-modal.visible {
+            display: flex;
+        }
+
+        .confirm-box {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            max-width: 340px;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        .confirm-box h3 {
+            font-size: 16px;
+            margin-bottom: 8px;
+            color: #1e293b;
+        }
+
+        .confirm-box p {
+            font-size: 13px;
+            color: #64748b;
+            margin-bottom: 20px;
+        }
+
+        .confirm-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .confirm-actions .btn {
+            flex: 1;
+            padding: 10px 16px;
+        }
+
+        .btn-danger {
+            background: #dc2626;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #b91c1c;
+        }
+
+        .edit-mode-banner {
+            background: #dbeafe;
+            border: 1px solid #93c5fd;
+            color: #1e40af;
+            padding: 10px 14px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .edit-mode-banner.visible {
+            display: flex;
+        }
+
+        .edit-mode-banner button {
+            background: transparent;
+            border: none;
+            color: #1e40af;
+            cursor: pointer;
+            font-weight: 600;
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -533,6 +688,10 @@
         </div>
 
         <div id="createTab" class="tab-content active">
+        <div class="edit-mode-banner" id="editBanner">
+            <span>Editing: <strong id="editingName"></strong></span>
+            <button onclick="cancelEdit()">Cancel Edit</button>
+        </div>
         <!-- PLAYER INFO -->
         <div class="card">
             <div class="section-header" onclick="toggleSection(this)">
@@ -719,16 +878,30 @@
         </div><!-- end createTab -->
 
         <div id="savedTab" class="tab-content">
+            <div class="search-bar">
+                <input type="text" class="search-input" id="searchInput" placeholder="Search by name, position, event..." oninput="filterReports()">
+            </div>
             <div class="card">
-                <div class="section-header">
+                <div class="section-header" style="cursor: default;">
                     <svg class="section-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                     </svg>
-                    <span class="section-title">Saved Reports</span>
+                    <span class="section-title">Saved Reports (<span id="reportCount">0</span>)</span>
                     <button class="btn btn-copy" onclick="loadReports()" style="margin-left: auto;">Refresh</button>
                 </div>
                 <div class="section-content" id="reportsList">
                     <div class="no-reports">Loading reports...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="confirm-modal" id="confirmModal">
+            <div class="confirm-box">
+                <h3>Delete Report?</h3>
+                <p>This will permanently delete the report for <strong id="deletePlayerName"></strong>.</p>
+                <div class="confirm-actions">
+                    <button class="btn btn-secondary" onclick="closeConfirmModal()">Cancel</button>
+                    <button class="btn btn-danger" onclick="confirmDelete()">Delete</button>
                 </div>
             </div>
         </div>
@@ -885,22 +1058,36 @@
                 return;
             }
 
+            const reportData = {
+                playerName: playerName || 'Unknown Player',
+                position,
+                event,
+                date,
+                specialWeapon,
+                notesWithBall,
+                notesAgainstBall,
+                reportWithBall: withBall,
+                reportAgainstBall: againstBall
+            };
+
             try {
-                const response = await fetch('/api/save', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        playerName: playerName || 'Unknown Player',
-                        position,
-                        event,
-                        date,
-                        specialWeapon,
-                        notesWithBall,
-                        notesAgainstBall,
-                        reportWithBall: withBall,
-                        reportAgainstBall: againstBall
-                    })
-                });
+                let response;
+                if (editingReportId) {
+                    // Update existing report
+                    reportData.id = editingReportId;
+                    response = await fetch('/api/update', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(reportData)
+                    });
+                } else {
+                    // Create new report
+                    response = await fetch('/api/save', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(reportData)
+                    });
+                }
 
                 const data = await response.json();
 
@@ -909,8 +1096,15 @@
                     return;
                 }
 
-                document.getElementById('toast').textContent = `Saved: ${playerName || 'Report'}`;
+                document.getElementById('toast').textContent = editingReportId
+                    ? `Updated: ${playerName || 'Report'}`
+                    : `Saved: ${playerName || 'Report'}`;
                 showToast();
+
+                // Reset edit mode
+                if (editingReportId) {
+                    cancelEdit();
+                }
             } catch (err) {
                 showError('Failed to save report');
             }
@@ -945,6 +1139,11 @@
             }
         }
 
+        // Store reports globally for filtering
+        let allReports = [];
+        let editingReportId = null;
+        let deleteReportId = null;
+
         // Load reports from Supabase
         async function loadReports() {
             const listEl = document.getElementById('reportsList');
@@ -959,37 +1158,178 @@
                     return;
                 }
 
-                const reports = data.reports || [];
-
-                if (reports.length === 0) {
-                    listEl.innerHTML = '<div class="no-reports">No saved reports yet</div>';
-                    return;
-                }
-
-                listEl.innerHTML = reports.map(r => `
-                    <div class="report-item" onclick="toggleReportDetails(this)">
-                        <div class="report-item-header">
-                            <div>
-                                <div class="report-item-name">${escapeHtml(r.player_name)}</div>
-                                <div class="report-item-meta">${escapeHtml(r.position || '')}${r.event ? ' • ' + escapeHtml(r.event) : ''}</div>
-                            </div>
-                            <div class="report-item-date">${r.date ? new Date(r.date).toLocaleDateString() : ''}</div>
-                        </div>
-                        <div class="report-item-details">
-                            <div class="report-detail-section">
-                                <div class="report-detail-label">With the Ball</div>
-                                <div class="report-detail-text">${escapeHtml(r.report_with_ball || 'N/A')}</div>
-                            </div>
-                            <div class="report-detail-section">
-                                <div class="report-detail-label">Against the Ball</div>
-                                <div class="report-detail-text">${escapeHtml(r.report_against_ball || 'N/A')}</div>
-                            </div>
-                        </div>
-                    </div>
-                `).join('');
+                allReports = data.reports || [];
+                document.getElementById('reportCount').textContent = allReports.length;
+                renderReports(allReports);
             } catch (err) {
                 listEl.innerHTML = '<div class="no-reports">Failed to load reports</div>';
             }
+        }
+
+        function renderReports(reports) {
+            const listEl = document.getElementById('reportsList');
+
+            if (reports.length === 0) {
+                listEl.innerHTML = '<div class="no-reports">No reports found</div>';
+                return;
+            }
+
+            listEl.innerHTML = reports.map(r => `
+                <div class="report-item" data-id="${r.id}">
+                    <div class="report-item-header" onclick="toggleReportDetails(this.parentElement)">
+                        <div style="flex: 1;">
+                            <div class="report-item-name">${escapeHtml(r.player_name)}</div>
+                            <div class="report-item-meta">${escapeHtml(r.position || '')}${r.event ? ' • ' + escapeHtml(r.event) : ''}</div>
+                            ${r.special_weapon ? `<div class="special-weapon-badge">${escapeHtml(r.special_weapon)}</div>` : ''}
+                        </div>
+                        <div class="report-item-date">${r.date ? new Date(r.date).toLocaleDateString() : ''}</div>
+                        <div class="report-actions" onclick="event.stopPropagation()">
+                            <button class="icon-btn edit" onclick="editReport('${r.id}')" title="Edit">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                </svg>
+                            </button>
+                            <button class="icon-btn delete" onclick="deleteReport('${r.id}', '${escapeHtml(r.player_name)}')" title="Delete">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="report-item-details">
+                        <div class="report-detail-section">
+                            <div class="report-detail-label">With the Ball</div>
+                            <div class="report-detail-text">${escapeHtml(r.report_with_ball || 'N/A')}</div>
+                        </div>
+                        <div class="report-detail-section">
+                            <div class="report-detail-label">Against the Ball</div>
+                            <div class="report-detail-text">${escapeHtml(r.report_against_ball || 'N/A')}</div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filterReports() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            if (!query) {
+                renderReports(allReports);
+                return;
+            }
+            const filtered = allReports.filter(r =>
+                (r.player_name || '').toLowerCase().includes(query) ||
+                (r.position || '').toLowerCase().includes(query) ||
+                (r.event || '').toLowerCase().includes(query) ||
+                (r.special_weapon || '').toLowerCase().includes(query)
+            );
+            renderReports(filtered);
+        }
+
+        function editReport(id) {
+            const report = allReports.find(r => r.id === id);
+            if (!report) return;
+
+            editingReportId = id;
+
+            // Populate form
+            document.getElementById('playerName').value = report.player_name || '';
+            document.getElementById('event').value = report.event || '';
+            document.getElementById('date').value = report.date || '';
+            document.getElementById('notesWithBall').value = report.notes_with_ball || '';
+            document.getElementById('notesAgainstBall').value = report.notes_against_ball || '';
+            document.getElementById('withBall').textContent = report.report_with_ball || '';
+            document.getElementById('againstBall').textContent = report.report_against_ball || '';
+
+            // Set positions
+            document.querySelectorAll('.position-btn').forEach(btn => btn.classList.remove('selected'));
+            if (report.position) {
+                report.position.split('/').forEach(pos => {
+                    const btn = document.querySelector(`.position-btn[data-pos="${pos}"]`);
+                    if (btn) btn.classList.add('selected');
+                });
+            }
+            updatePositionField();
+
+            // Set weapons
+            document.querySelectorAll('.weapon-btn').forEach(btn => btn.classList.remove('selected'));
+            if (report.special_weapon) {
+                report.special_weapon.split(' / ').forEach(weapon => {
+                    const btn = document.querySelector(`.weapon-btn[data-weapon="${weapon}"]`);
+                    if (btn) btn.classList.add('selected');
+                });
+            }
+            updateWeaponField();
+
+            // Show output if we have reports
+            if (report.report_with_ball || report.report_against_ball) {
+                document.getElementById('output').classList.add('visible');
+            }
+
+            // Show edit banner
+            document.getElementById('editingName').textContent = report.player_name;
+            document.getElementById('editBanner').classList.add('visible');
+
+            // Change button text
+            document.querySelector('.btn-save').textContent = 'Update Report';
+
+            // Switch to create tab
+            showTab('create');
+        }
+
+        function cancelEdit() {
+            editingReportId = null;
+            document.getElementById('editBanner').classList.remove('visible');
+            document.querySelector('.btn-save').textContent = 'Save Report';
+            clearForm();
+        }
+
+        function clearForm() {
+            document.getElementById('playerName').value = '';
+            document.getElementById('event').value = '';
+            document.getElementById('date').value = '';
+            document.getElementById('notesWithBall').value = '';
+            document.getElementById('notesAgainstBall').value = '';
+            document.getElementById('withBall').textContent = '';
+            document.getElementById('againstBall').textContent = '';
+            document.getElementById('output').classList.remove('visible');
+            document.querySelectorAll('.position-btn').forEach(btn => btn.classList.remove('selected'));
+            document.querySelectorAll('.weapon-btn').forEach(btn => btn.classList.remove('selected'));
+            updatePositionField();
+            updateWeaponField();
+        }
+
+        function deleteReport(id, playerName) {
+            deleteReportId = id;
+            document.getElementById('deletePlayerName').textContent = playerName;
+            document.getElementById('confirmModal').classList.add('visible');
+        }
+
+        function closeConfirmModal() {
+            deleteReportId = null;
+            document.getElementById('confirmModal').classList.remove('visible');
+        }
+
+        async function confirmDelete() {
+            if (!deleteReportId) return;
+
+            try {
+                const response = await fetch(`/api/delete?id=${deleteReportId}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+
+                if (data.error) {
+                    showError('Failed to delete: ' + data.error);
+                } else {
+                    document.getElementById('toast').textContent = 'Report deleted';
+                    showToast();
+                    loadReports();
+                }
+            } catch (err) {
+                showError('Failed to delete report');
+            }
+
+            closeConfirmModal();
         }
 
         function toggleReportDetails(el) {
